@@ -1,0 +1,11 @@
+{
+  "name": "react-from-scratch",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "https://github.com/reillyjodonnell/react-from-scratch.git",
+  "author": "Reilly <reillyodie@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "esbuild": "^0.15.5"
+  }
+}
