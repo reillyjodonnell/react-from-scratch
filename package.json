@@ -5,6 +5,9 @@
   "repository": "https://github.com/reillyjodonnell/react-from-scratch.git",
   "author": "Reilly <reillyodie@gmail.com>",
   "license": "MIT",
+  "scripts": {
+    "build": "esbuild src/index.tsx --bundle --outfile=dist/out.js"
+  },
   "dependencies": {
     "esbuild": "^0.15.5"
   }
