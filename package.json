@@ -5,7 +5,14 @@
   "repository": "https://github.com/reillyjodonnell/react-from-scratch.git",
   "author": "Reilly <reillyodie@gmail.com>",
   "license": "MIT",
+  "scripts": {
+    "dev": "bun run bundle && bun run serve",
+    "bundle": "bun build ./src/index.tsx --outdir ./dist --target browser",
+    "serve": "bun run src/server.ts"
+  },
   "dependencies": {
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "esbuild": "^0.15.5"
   },
   "private": true,
