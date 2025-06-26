@@ -40,6 +40,7 @@ const server = serve({
         </head>
         <body>
         </body>
+        <div id="entry" />
             <script src="/index.js"></script>
 
         </html>

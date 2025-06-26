@@ -1,4 +1,5 @@
-/* 
+/*
+
   React has a shit ton of complexity.
 
   But what does it boil down to?
@@ -6,7 +7,8 @@
   1. describing ui declaratively (jsx)
   2. recalculating ui from scratch
   3. diff & apply updates
-*/
+
+import { JsxElement } from "typescript";
 
 // so let's declare our UI
 // we have to start somewhere...
@@ -41,7 +43,7 @@ function Component() {
 putInDOM(<Component />);
 
 function putInDOM(node: React.JSX.Element) {
-  const root = document.body;
+  const root = document.getElementById('entry');
   traverse(node, root);
   prevTree = root;
 }
@@ -188,7 +190,6 @@ function traverse(node: JSX.Element, parent: HTMLElement | null = null) {
   
   so to start we need to construct a fiber tree - we can be pragmatic about what it contains
   
-  */
 
 const fiberTypes = {
   ROOT: 'ROOT',
@@ -211,7 +212,6 @@ class Fiber {
   }
 }
 
-/*
 Fuck that complexity. Just basics:
 
 - updating dom is expensive if we have to always repaint entire thing we'll be fucked
@@ -232,11 +232,9 @@ But to start we need to store the og tree.
 
 No need to complicate shit - just store it in a variable
 
-*/
 
 let prevTree = null;
 
-/*
 // now we can do:
 
 function putInDOM(node: React.JSX.Element) {
@@ -253,9 +251,7 @@ that's what useState is for
 
 We'll rebuild useState from the api it offers
 
-*/
 // ## useState
-/*
 
 the first step is that useState allows us to pass a default value
 
@@ -306,6 +302,8 @@ tbh this would be a perfect use case for a compiler to make it easier to manage 
 But a compiler is outside the scope of this so the array will do
 */
 
+import { JsxElement } from 'typescript';
+
 let componentMap = new Map<
   Function,
   Array<{
@@ -342,7 +340,6 @@ let componentMap = new Map<
 
 
 
-*/
 
 let currentComponent: Function | null = null;
 let hookIndex = 0;
@@ -385,19 +382,188 @@ function useState(initialValue: any) {
 }
 
 // there's a lot of bugs but the idea is there
+*/
 
-export const React = {
-  // we need that render later
+/*
+  in order to have state / flag components for updates we need a mechanism to store state / have a representatino of the tree
+  so we can diff against it
 
-  createRoot: (element: HTMLElement) => {
-    return {
-      render: (component: React.JSX.Element) => {
-        // a shit ton of stuff:
-        // 1. start initial render
-      },
-    };
-  },
-};
+  react uses a fiber tree so let's do that
 
-const root = createRoot(document.getElementById('app'));
-root.render(<App />);
+
+
+*/
+
+// Reminder we are making a Fiber instance for every react element (basically every tag or component)
+class Fiber {
+  type: string; // this is the tag name or component function
+  parent: Fiber | null;
+  props: Record<string, any>;
+  sibling: Fiber | null = null;
+  child: Fiber | null = null;
+  dom: HTMLElement | null = null;
+  value?: string | number;
+
+  constructor(
+    type: string,
+    props: Record<string, any> = {},
+    parent: Fiber | null = null,
+    dom: HTMLElement | null = null,
+    value?: string | number
+  ) {
+    this.dom = dom;
+    this.type = type;
+    this.props = props;
+    this.parent = parent;
+    this.value = value;
+  }
+}
+
+// ok now conceptually we are going to start at the root and traverse it and make these Fibers and populate them on the fly
+
+// to start we will do it naively & it will look damn close to the traverse function we had before
+
+// let's create a root for the tree
+
+let root = new Fiber('ROOT');
+
+function traverseReactTree(
+  node: JsxElement,
+  parent: Fiber | null = null,
+  existingFiber: Fiber | null = null
+): Fiber {
+  const fiber = existingFiber
+    ? existingFiber
+    : new Fiber(node.type, node.props, parent);
+
+  if (parent && !parent.child) parent.child = fiber;
+
+  if (
+    node.props &&
+    'children' in node.props &&
+    Array.isArray(node.props.children)
+  ) {
+    let children: Array<{ fiber: Fiber; element: ReactElement }> = [];
+    let index = 0;
+    for (const child of node.props.children) {
+      const childFiber = isReactTransitionalElement(child)
+        ? new Fiber(child.type, child.props, fiber)
+        : new Fiber('TEXT', {}, fiber, null, child);
+
+      if (childFiber.type === 'TEXT')
+        console.log('CREATED TEXT FIBER: ', childFiber);
+      // if the child is a string or number,
+      children.push({ fiber: childFiber, element: child });
+
+      if (index === 0) {
+        fiber.child = childFiber; // set the first child
+      }
+      if (index > 0) {
+        // set the sibling of the previous child
+        if (children[index - 1]) {
+          children[index - 1]['fiber'].sibling = childFiber;
+        }
+      }
+
+      if (!fiber.child) {
+      }
+      index++;
+    }
+
+    // now we need to traverse the children
+    for (const { element, fiber: childFiber } of children) {
+      traverseReactTree(element, fiber, childFiber);
+    }
+  }
+
+  if (
+    node.props &&
+    'children' in node.props &&
+    !Array.isArray(node.props.children)
+  ) {
+    const textFiber = new Fiber('TEXT', {}, fiber, null, node.props.children);
+    fiber.child = textFiber; //
+  }
+
+  switch (typeof node.type) {
+    case 'function': {
+      const componentFiber = traverseReactTree(node.type(), node);
+      fiber.child = componentFiber;
+      break;
+    }
+    case 'string':
+      {
+        fiber.dom = document.createElement(node.type);
+
+        // set the attributes on the dom element
+        for (const [key, value] of Object.entries(node.props)) {
+          if (key !== 'children') {
+            // if the value is an object, we assume it's a style object
+            if (typeof value === 'object' && !Array.isArray(value)) {
+              for (const [styleKey, styleValue] of Object.entries(value)) {
+                fiber.dom!.style[styleKey as any] = styleValue;
+              }
+            } else {
+              fiber.dom![key] = value;
+            }
+          }
+        }
+      }
+      break;
+  }
+
+  return fiber;
+}
+
+function Component() {
+  let count = 0;
+  return (
+    <div
+      style={{
+        background: 'pink',
+      }}
+    >
+      <span>oh </span>
+      <span>shit</span>
+      <button>{count}</button>
+      <div
+        style={{
+          background: 'green',
+          display: 'flex',
+        }}
+      >
+        I wonder
+        <p>Does this really work??</p>
+      </div>
+      <div test-id="wow">
+        i think it does :D
+        <table></table>
+      </div>
+    </div>
+  );
+}
+
+traverseReactTree(<Component />, root);
+
+console.log(root);
+
+commitToDOM(root, document.body);
+
+function commitToDOM(fiber: Fiber, parent: HTMLElement) {
+  if (fiber.type === 'TEXT' && typeof fiber.value === 'string')
+    parent.innerHTML = fiber.value;
+  if (fiber.type === 'TEXT' && typeof fiber.value === 'number')
+    parent.innerHTML = fiber.value.toString();
+  if (fiber.dom) parent.append(fiber.dom);
+  if (fiber.child) commitToDOM(fiber.child, fiber.dom || parent);
+  if (fiber.sibling) commitToDOM(fiber.sibling, parent);
+}
+
+function isReactTransitionalElement(obj: any) {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    obj.$$typeof &&
+    obj.$$typeof.toString() === 'Symbol(react.transitional.element)'
+  );
+}
